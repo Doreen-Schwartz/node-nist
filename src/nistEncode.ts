@@ -36,6 +36,7 @@ import { failure, Result, success } from './result';
 /** Encoding options for a single NIST Field. */
 interface NistFieldEncodeOptions extends NistFieldCodecOptions {
   formatter?: (field: NistField, nist: NistFile) => NistFieldValue;
+  informationWriter?: (informationItem: NistInformationItem) => Buffer | undefined;
 }
 
 /** Encoding options for one NIST record. */
@@ -156,6 +157,7 @@ const computeFieldLength = (field: NistField): number => {
 const assignFieldLength: NistFieldVisitorFn<LengthTracking, NistFieldEncodeOptions> = ({
   field,
   data,
+  options,
 }): NistFieldVisitorFnReturn => {
   data.recordLength += computeFieldLength(field);
   return success(undefined);
@@ -347,47 +349,65 @@ const encodeType4Record = (
   return success(undefined);
 };
 
+const defaultInformationWriter = (
+  informationItem: Exclude<NistInformationItem, undefined>,
+): Buffer => {
+  if (typeof informationItem === 'string') {
+    return Buffer.from(informationItem);
+  }
+  return informationItem;
+};
+
 const encodeNistInformationItem = (
   informationItem: NistInformationItem,
   data: EncodeTracking,
+  options?: NistFieldEncodeOptions,
 ): void => {
   if (informationItem) {
     if (typeof informationItem === 'string') {
-      data.offset += data.buf.write(informationItem, data.offset); // utf-8 is the default
+      const encodedBuffer =
+        options?.informationWriter?.(informationItem) ?? defaultInformationWriter(informationItem);
+      data.buf = Buffer.concat([data.buf, encodedBuffer]);
+      data.offset += encodedBuffer.byteLength;
     } else {
       data.offset += informationItem.copy(data.buf, data.offset);
     }
   }
 };
 
-const encodeNistSubfield = (subfield: NistSubfield, data: EncodeTracking): void => {
+const encodeNistSubfield = (
+  subfield: NistSubfield,
+  data: EncodeTracking,
+  options?: NistFieldEncodeOptions,
+): void => {
   if (Array.isArray(subfield)) {
     subfield.forEach((informationItem, index, array) => {
-      encodeNistInformationItem(informationItem, data);
+      encodeNistInformationItem(informationItem, data, options);
       if (index < array.length - 1) {
         data.offset = data.buf.writeUInt8(SEPARATOR_UNIT, data.offset);
       }
     });
   } else {
-    encodeNistInformationItem(subfield, data);
+    encodeNistInformationItem(subfield, data, options);
   }
 };
 
 const encodeNistField: NistFieldVisitorFn<EncodeTracking, NistFieldEncodeOptions> = ({
   field,
   data,
+  options,
 }): NistFieldVisitorFnReturn => {
   data.offset += data.buf.write(formatFieldKey(field.key.type, field.key.field), data.offset);
   data.offset = data.buf.writeUInt8(SEPARATOR_FIELD_NUMBER, data.offset);
   if (Array.isArray(field.value)) {
     field.value.forEach((subfield, index, array) => {
-      encodeNistSubfield(subfield, data);
+      encodeNistSubfield(subfield, data, options);
       if (index < array.length - 1) {
         data.offset = data.buf.writeUInt8(SEPARATOR_RECORD, data.offset);
       }
     });
   } else {
-    encodeNistSubfield(field.value, data);
+    encodeNistSubfield(field.value, data, options);
   }
 
   data.offset = data.buf.writeUInt8(SEPARATOR_GROUP, data.offset);
