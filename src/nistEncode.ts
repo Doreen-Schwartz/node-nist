@@ -367,8 +367,7 @@ const encodeNistInformationItem = (
     if (typeof informationItem === 'string') {
       const encodedBuffer =
         options?.informationWriter?.(informationItem) ?? defaultInformationWriter(informationItem);
-      data.buf = Buffer.concat([data.buf, encodedBuffer]);
-      data.offset += encodedBuffer.byteLength;
+      data.offset += encodedBuffer.copy(data.buf, data.offset);
     } else {
       data.offset += informationItem.copy(data.buf, data.offset);
     }
