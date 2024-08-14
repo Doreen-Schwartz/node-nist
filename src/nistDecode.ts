@@ -132,10 +132,9 @@ const decodeNistSubfield = (
   buffer: Buffer,
   startOffset: number,
   endOffset: number,
-  options: NistFieldDecodeOptions = {
-    informationDecoder: stringValue,
-  },
+  options?: NistFieldDecodeOptions,
 ): NistSubfield => {
+  const decoder = options?.informationDecoder || stringValue;
   let offset = startOffset;
 
   let unitSeparator = findSeparator(buffer, SEPARATOR_UNIT, offset, endOffset);
@@ -144,7 +143,7 @@ const decodeNistSubfield = (
     while (offset <= endOffset) {
       subfield = [
         ...subfield,
-        options.informationDecoder?.(buffer, offset, unitSeparator ? unitSeparator - 1 : endOffset),
+        decoder(buffer, offset, unitSeparator ? unitSeparator - 1 : endOffset),
       ];
       offset = (unitSeparator || endOffset) + 1;
       unitSeparator = findSeparator(buffer, SEPARATOR_UNIT, offset, endOffset);
@@ -154,9 +153,9 @@ const decodeNistSubfield = (
 
   // The same logic is present also in decodeNistFieldValue.
   if (alwaysDecodeAsSet(key)) {
-    return [options.informationDecoder?.(buffer, startOffset, endOffset)];
+    return [decoder(buffer, startOffset, endOffset)];
   }
-  return options.informationDecoder?.(buffer, startOffset, endOffset);
+  return decoder(buffer, startOffset, endOffset);
 };
 
 const decodeNistFieldValue = (
@@ -164,10 +163,9 @@ const decodeNistFieldValue = (
   buffer: Buffer,
   startOffset: number,
   endOffset: number,
-  options: NistFieldDecodeOptions = {
-    informationDecoder: stringValue,
-  },
+  options?: NistFieldDecodeOptions,
 ): NistFieldValue => {
+  const decoder = options?.informationDecoder || stringValue;
   let offset = startOffset;
 
   let recordSeparator = findSeparator(buffer, SEPARATOR_RECORD, offset, endOffset);
@@ -178,9 +176,9 @@ const decodeNistFieldValue = (
     if (!unitSeparator) {
       // The same logic is present also in decodeNistSubfield.
       if (alwaysDecodeAsSet(key)) {
-        return [[options.informationDecoder?.(buffer, startOffset, endOffset)]];
+        return [[decoder(buffer, startOffset, endOffset)]];
       }
-      return options.informationDecoder?.(buffer, startOffset, endOffset);
+      return decoder(buffer, startOffset, endOffset);
     }
     // Also deal with the case there is no record separator but some unit separators.
     return [decodeNistSubfield(key, buffer, startOffset, endOffset)];

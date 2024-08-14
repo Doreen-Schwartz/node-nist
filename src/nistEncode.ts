@@ -80,6 +80,15 @@ const invokeFormatters = ({
   return success(undefined);
 };
 
+const defaultInformationWriter = (
+  informationItem: Exclude<NistInformationItem, undefined>,
+): Buffer => {
+  if (typeof informationItem === 'string') {
+    return Buffer.from(informationItem);
+  }
+  return informationItem;
+};
+
 /* --------------------------- Automatic fields ------------------------------------------------- */
 
 const determineCharset = ({ nist }: { nist: NistFile }): Result<void, NistValidationError> => {
@@ -123,34 +132,38 @@ interface LengthTracking {
   totalLength: number;
 }
 
-const informationItemLength = (informationItem: NistInformationItem): number =>
+const informationItemLength = (
+  informationItem: NistInformationItem,
+  options?: NistFieldEncodeOptions,
+): number =>
   informationItem
     ? typeof informationItem === 'string'
-      ? Buffer.byteLength(informationItem) // utf-8 is the default
+      ? options?.informationWriter?.(informationItem)?.byteLength ??
+        defaultInformationWriter(informationItem).byteLength // utf-8 is the default
       : informationItem.byteLength
     : 0;
 
-const subfieldLength = (subfield: NistSubfield): number =>
+const subfieldLength = (subfield: NistSubfield, options?: NistFieldEncodeOptions): number =>
   Array.isArray(subfield)
     ? subfield.reduce(
-        (total, informationItem) => total + informationItemLength(informationItem),
+        (total, informationItem) => total + informationItemLength(informationItem, options),
         0,
       ) +
       (subfield.length - 1) // unit separators
-    : informationItemLength(subfield);
+    : informationItemLength(subfield, options);
 
-const fieldValueLength = (value: NistFieldValue): number =>
+const fieldValueLength = (value: NistFieldValue, options?: NistFieldEncodeOptions): number =>
   Array.isArray(value)
     ? (value as NistInformationItem[]).reduce(
-        (total, subfield) => total + subfieldLength(subfield),
+        (total, subfield) => total + subfieldLength(subfield, options),
         0,
       ) +
       (value.length - 1) // record separators
-    : subfieldLength(value);
+    : subfieldLength(value, options);
 
-const computeFieldLength = (field: NistField): number => {
+const computeFieldLength = (field: NistField, options?: NistFieldEncodeOptions): number => {
   const fieldNumberLength = formatFieldKey(field.key.type, field.key.field).length;
-  const valueLength = fieldValueLength(field.value);
+  const valueLength = fieldValueLength(field.value, options);
   return fieldNumberLength + 1 + valueLength + 1; // 1 for ':', 1 for group separator
 };
 
@@ -159,7 +172,7 @@ const assignFieldLength: NistFieldVisitorFn<LengthTracking, NistFieldEncodeOptio
   data,
   options,
 }): NistFieldVisitorFnReturn => {
-  data.recordLength += computeFieldLength(field);
+  data.recordLength += computeFieldLength(field, options);
   return success(undefined);
 };
 
@@ -347,15 +360,6 @@ const encodeType4Record = (
   data.offset += record[9].copy(data.buf, data.offset);
 
   return success(undefined);
-};
-
-const defaultInformationWriter = (
-  informationItem: Exclude<NistInformationItem, undefined>,
-): Buffer => {
-  if (typeof informationItem === 'string') {
-    return Buffer.from(informationItem);
-  }
-  return informationItem;
 };
 
 const encodeNistInformationItem = (
