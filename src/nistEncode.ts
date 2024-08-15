@@ -439,9 +439,11 @@ const encodeNistRecord: NistRecordVisitorFn<EncodeTracking, NistFieldEncodeOptio
 const encodeNistFile = ({
   nist,
   buf,
+  options,
 }: {
   nist: NistFile;
   buf: Buffer;
+  options?: NistEncodeOptions;
 }): Result<void, NistValidationError> => {
   const encodeTracking = { buf, offset: 0 };
   return visitNistFile<EncodeTracking, NistFieldEncodeOptions, NistRecordEncodeOptions>({
@@ -449,6 +451,7 @@ const encodeNistFile = ({
     nist,
     recordVisitor: { fn: encodeNistRecord, data: encodeTracking },
     visitorStrategy: {},
+    options: options?.codecOptions,
   });
 };
 
@@ -514,7 +517,7 @@ export const nistEncode = (
   }
 
   // 4. encode all fields into the buf (including arrays of subfields)
-  const result3 = encodeNistFile({ nist: nistPopulated, buf });
+  const result3 = encodeNistFile({ nist: nistPopulated, buf, options });
   if (result3.tag === 'failure') {
     return result3;
   }
