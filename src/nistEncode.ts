@@ -179,7 +179,7 @@ const assignFieldLength: NistFieldVisitorFn<LengthTracking, NistFieldEncodeOptio
 const assignRecordLength: NistRecordVisitorFn<LengthTracking, NistFieldEncodeOptions> = (
   params,
 ): Result<void, NistValidationError> => {
-  const { nist, recordTypeNumber, record, recordNumber, visitorStrategy, data } = params;
+  const { nist, recordTypeNumber, record, recordNumber, visitorStrategy, data, options } = params;
 
   let recordLength;
   if (recordTypeNumber === 4) {
@@ -195,6 +195,7 @@ const assignRecordLength: NistRecordVisitorFn<LengthTracking, NistFieldEncodeOpt
       recordNumber,
       recordTypeNumber,
       visitorStrategy,
+      options,
     });
     if (result.tag === 'failure') {
       return result;
@@ -224,8 +225,10 @@ const assignRecordLength: NistRecordVisitorFn<LengthTracking, NistFieldEncodeOpt
 
 const computeAutomaticFields = ({
   nist,
+  options,
 }: {
   nist: NistFile;
+  options: NistEncodeOptions;
 }): Result<number, NistValidationError> => {
   const tracking = { currentIdc: 0, contentRecordCount: 0, records: [] };
   // 1. assign IDCs to xx.002 and determine value for 1.003
@@ -247,6 +250,7 @@ const computeAutomaticFields = ({
     nist,
     recordVisitor: { fn: assignRecordLength, data: lengthTracking },
     visitorStrategy: {},
+    options: options.codecOptions,
   });
   if (result.tag === 'failure') {
     return result;
@@ -479,7 +483,7 @@ export const nistPopulate = (
   determineCharset({ nist });
 
   // 4. compute automatic fields: xx.002 (IDC), 1.003 and 1.015, xx.001
-  const result = computeAutomaticFields({ nist });
+  const result = computeAutomaticFields({ nist, options });
   if (result.tag === 'failure') {
     return result;
   }
